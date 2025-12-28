@@ -1,9 +1,10 @@
 [package]
-name = "certus_bt"
+name = "certus_example"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 certus_core = { path = "../certus_core" }
+certus_bt = { path = "../certus_bt" }
 chrono = "0.4.42"
 csv = "1.4.0"

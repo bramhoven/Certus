@@ -4,7 +4,10 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub enum InstrumentType {
     Stock,
-    Futures { expiry: String, big_point_value: f64 },
+    Futures {
+        expiry: String,
+        big_point_value: f64,
+    },
 }
 
 /// struct defining a trading instrument
@@ -19,7 +22,7 @@ pub struct Instrument {
 #[derive(Clone, Debug)]
 pub enum OrderSide {
     Buy,
-    Sell
+    Sell,
 }
 
 /// enum defining possible order types
@@ -82,8 +85,13 @@ impl fmt::Display for Trade {
         write!(
             f,
             "Trade {} for instrument {}: size {}, entry at {} (index {}), exit at {:?} (index {:?})",
-            self.id, self.instrument, self.size, self.entry_price, self.entry_index, self.exit_price, self.exit_index
+            self.id,
+            self.instrument,
+            self.size,
+            self.entry_price,
+            self.entry_index,
+            self.exit_price,
+            self.exit_index
         )
     }
 }
-

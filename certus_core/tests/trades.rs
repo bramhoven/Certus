@@ -1,4 +1,4 @@
-use certus_core::core::{Trade};
+use certus_core::core::Trade;
 
 #[test]
 fn test_trade_pnl_open_trade() {

@@ -1,3 +1,3 @@
 [workspace]
 resolver = "3"
-members = ["certus_bt","certus_core", "certus_live"]
+members = ["certus_bt","certus_core", "certus_example", "certus_live"]
