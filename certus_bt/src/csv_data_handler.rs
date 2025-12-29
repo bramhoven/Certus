@@ -3,6 +3,8 @@ use std::error::Error;
 use certus_core::data::{DataFeed, DataHandler, DataHandlerError, MarketData};
 use csv::{ReaderBuilder, StringRecord};
 
+use crate::data::HistoricBarConsolidationModel;
+
 pub struct BacktestingDataFeed<'a> {
     index: usize,
     data: &'a [MarketData],
@@ -29,14 +31,16 @@ pub trait CSVRowParser {
 pub struct CSVDataHandler {
     pub file_path: String,
     csv_row_parser: Box<dyn CSVRowParser>,
+    bar_consolidation_model: HistoricBarConsolidationModel,
     pub data: Vec<MarketData>,
 }
 
 impl CSVDataHandler {
-    pub fn new(file_path: String, csv_row_parser: Box<dyn CSVRowParser>) -> Self {
+    pub fn new(file_path: String, csv_row_parser: Box<dyn CSVRowParser>, bar_consolidation_model: HistoricBarConsolidationModel) -> Self {
         Self {
             file_path,
             csv_row_parser,
+            bar_consolidation_model,
             data: Vec::new(),
         }
     }
@@ -53,7 +57,8 @@ impl CSVDataHandler {
             data.push(self.csv_row_parser.parse_row(record)?);
         }
 
-        Ok(data)
+        let consolidated_data = self.bar_consolidation_model.consolidate_bars(&data);
+        Ok(consolidated_data)
     }
 }
 
