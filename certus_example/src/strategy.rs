@@ -1,27 +1,33 @@
 use certus_core::core::Order;
-use certus_core::strategies::Strategy;
+use certus_core::indicator::{Indicator, MovingAverage};
+use certus_core::strategy::Strategy;
+use certus_core::data::MarketData;
 
 pub struct SimpleStrategy {
-    ema_slow: f64,
-    ema_fast: f64,
+    ma_slow: MovingAverage,
+    ma_fast: MovingAverage,
 }
 
 impl SimpleStrategy {
     pub fn new() -> Self {
         Self {
-            ema_fast: 0.0,
-            ema_slow: 0.0,
+            ma_fast: MovingAverage::new(7),
+            ma_slow: MovingAverage::new(21),
         }
     }
 }
 
 impl Strategy for SimpleStrategy {
     fn init(&mut self) {
-        self.ema_slow = 0.0;
-        self.ema_fast = 0.0;
+    }
+    
+    fn update(&mut self, market_data: MarketData) {
+        self.ma_fast.update(market_data);
+        self.ma_slow.update(market_data);
     }
 
-    fn next(&mut self) -> Vec<Order> {
+    fn next(&mut self, _market_data: MarketData) -> Vec<Order> {
+        println!("MA Fast {} - MA Slow {}", self.ma_fast.value, self.ma_slow.value);
         Vec::new()
     }
 }
