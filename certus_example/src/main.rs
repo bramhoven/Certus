@@ -11,7 +11,11 @@ use certus_core::engine::Engine;
 use crate::data::TradeStationCSVRowParser;
 use crate::strategy::SimpleStrategy;
 
+use env_logger;
+
 fn main() {
+    env_logger::init();
+
     let ts_row_parser = TradeStationCSVRowParser::new();
     let bar_consolidation_model = HistoricBarConsolidationModel::new(1, 30);
     let data_handler = CSVDataHandler::new(

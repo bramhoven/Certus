@@ -4,6 +4,8 @@ use certus_core::data::DataHandler;
 use certus_core::engine::{Engine, ExecutionEngine};
 use certus_core::strategy::Strategy;
 
+use log;
+
 pub struct BacktestingEngine {
     pub data_handler: Box<dyn DataHandler>,
     pub broker: Box<dyn Broker>,
@@ -17,26 +19,26 @@ impl Engine for BacktestingEngine {
     }
 
     fn run(&mut self) {
-        dbg!("Start running");
+        log::debug!("Start running");
 
         let _ = self.data_handler.start();
         let mut data_feed = self.data_handler.get_data_feed();
 
-        dbg!("Initializing strategies");
+        log::debug!("Initializing strategies");
         for strategy in self.strategies.iter_mut() {
             strategy.init();
         }
 
-        dbg!("Start polling data feed");
+        log::debug!("Start polling data feed");
         while let Some(market_data) = data_feed.poll() {
-            dbg!("{}", market_data);
+            log::debug!("{}", market_data);
 
-            dbg!("Calling update() on strategies");
+            log::debug!("Calling update() on strategies");
             for strategy in self.strategies.iter_mut() {
                 strategy.update(market_data);
             }
 
-            dbg!("Calling next() on strategies");
+            log::debug!("Calling next() on strategies");
             for strategy in self.strategies.iter_mut() {
                 let _orders = strategy.next(market_data);
             }
@@ -46,7 +48,7 @@ impl Engine for BacktestingEngine {
             //     }
             // }
         }
-        dbg!("Finished data feed");
+        log::debug!("Finished data feed");
     }
 }
 

@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::{core::Order, data::MarketData};
+use crate::data::MarketData;
 
 /// trait for trading strategies
 /// init and next methods should be implemented
@@ -13,8 +13,7 @@ pub trait Strategy {
     fn update(&mut self, market_data: MarketData);
 
     /// Will be called for every new bar or tick, when tick data is supplied
-    /// returns a list of orders to be placed
-    fn next(&mut self, market_data: MarketData) -> Vec<Order>;
+    fn next(&mut self, market_data: MarketData);
 }
 
 #[derive(Debug, Default)]
@@ -27,7 +26,7 @@ impl StrategyData {
     pub fn new(max_data_back: usize) -> Self {
         Self {
             max_data_back,
-            market_data: VecDeque::new()
+            market_data: VecDeque::with_capacity(max_data_back)
         }
     }
 
@@ -46,7 +45,6 @@ impl Strategy for StrategyData {
         }
     }
 
-    fn next(&mut self, _market_data: MarketData) -> Vec<Order> {
-        Vec::new()
+    fn next(&mut self, _market_data: MarketData) {
     }
 }

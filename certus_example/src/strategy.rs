@@ -1,8 +1,8 @@
-
-use certus_core::core::Order;
 use certus_core::indicator::{Indicator, MovingAverage};
 use certus_core::strategy::{Strategy, StrategyData};
 use certus_core::data::MarketData;
+
+use log;
 
 pub struct SimpleStrategy {
     data: StrategyData,
@@ -32,16 +32,14 @@ impl Strategy for SimpleStrategy {
         self.ma_slow.update(market_data);
     }
 
-    fn next(&mut self, _market_data: MarketData) -> Vec<Order> {
-        if !self.data.is_ready() { return Vec::new(); }
+    fn next(&mut self, _market_data: MarketData) {
+        if !self.data.is_ready() { return; }
 
         let current_bar = match self.data.market_data.front() {
             Some(MarketData::Bar(bar)) => bar,
             _ => unreachable!("Expected only MarketData::Bar"),
         };
 
-        println!("Close {} - MA Fast {} - MA Slow {}", current_bar.close, self.ma_fast.value, self.ma_slow.value);
-
-        Vec::new()
+        log::info!("Close {} - MA Fast {} - MA Slow {}", current_bar.close, self.ma_fast.value, self.ma_slow.value);
     }
 }

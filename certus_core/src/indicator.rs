@@ -19,7 +19,7 @@ impl MovingAverage {
         Self {
             period,
             value: 0.0,
-            window: VecDeque::new()
+            window: VecDeque::with_capacity(period)
         }
     }
 }
