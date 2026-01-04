@@ -1,9 +1,9 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, mem};
 
 use certus_core::core::OrderType::*;
 use certus_core::{
     broker::{Account, Broker},
-    core::{Fill, Order, OrderSide, Trade},
+    core::{Fill, Order, OrderSide, OrderType, Trade},
     data::MarketData,
 };
 
@@ -14,8 +14,27 @@ pub struct BacktestingBroker {
     last_order_id: usize,
     fills: HashMap<usize, Fill>,
     last_fill_id: usize,
-    _trades: HashMap<usize, Trade>,
-    _last_trade_id: usize,
+    order_trades: HashMap<usize, usize>,
+    trades: HashMap<usize, Trade>,
+    last_trade_id: usize,
+    trade_metrics: HashMap<usize, TradeMetrics>,
+}
+
+struct PendingFill {
+    order_id: usize,
+    stored_order_id: usize,
+    fill_size: f64,
+    order_remaining: f64,
+    instrument: u32,
+    strategy_id: usize,
+    side: OrderSide,
+    order_type: OrderType,
+}
+
+#[derive(Default)]
+struct TradeMetrics {
+    total_size: f64,
+    weighted_sum: f64,
 }
 
 impl BacktestingBroker {
@@ -30,60 +49,206 @@ impl BacktestingBroker {
             last_order_id: 0,
             fills: HashMap::new(),
             last_fill_id: 0,
-            _trades: HashMap::new(),
-            _last_trade_id: 0,
+            order_trades: HashMap::new(),
+            trades: HashMap::new(),
+            last_trade_id: 0,
+            trade_metrics: HashMap::new(),
         }
     }
 
     pub fn simulate_fills(&mut self, market_data: MarketData) {
-        for order_id in self.unfilled_orders.iter() {
-            let order = self.orders.get(order_id).unwrap();
+        let (mut available_size, current_price) = Self::extract_liquidity(&market_data);
 
-            let fill_id = self.last_fill_id + 1;
-            self.last_fill_id = fill_id;
+        if available_size <= 0.0 {
+            return;
+        }
 
-            let current_price = match market_data  {
-                MarketData::Bar(bar) => bar.open,
-                MarketData::Tick(tick) => tick.price,
+        let order_queue = mem::take(&mut self.unfilled_orders);
+        let mut remaining_orders = Vec::new();
+
+        for order_id in order_queue {
+            if available_size <= 0.0 {
+                remaining_orders.push(order_id);
+                continue;
+            }
+
+            let Some(pending_fill) = self.prepare_order_fill(order_id, &mut available_size) else {
+                continue;
             };
 
-            let price = match order.order_type {
-                Market => current_price,
-                Limit(limit) => match order.side {
-                    OrderSide::Buy => {
-                        if current_price < limit {
-                            current_price
-                        } else {
-                            limit
-                        }
-                    }
-                    OrderSide::Sell => {
-                        if current_price > limit {
-                            current_price
-                        } else {
-                            limit
-                        }
-                    }
-                },
-                Stop(stop) => stop,
-                StopLimit(stop, _limit) => stop,
+            let price =
+                Self::price_for_fill(&pending_fill.order_type, &pending_fill.side, current_price);
+            self.record_fill(&pending_fill, price);
+
+            if pending_fill.order_remaining > 0.0 {
+                remaining_orders.push(order_id);
+            }
+        }
+
+        self.unfilled_orders = remaining_orders;
+    }
+
+    pub fn get_trade_for_order(&self, order_id: usize) -> Option<&Trade> {
+        self.order_trades
+            .get(&order_id)
+            .and_then(|trade_id| self.trades.get(trade_id))
+    }
+
+    pub fn get_fill(&self, fill_id: usize) -> Option<&Fill> {
+        self.fills.get(&fill_id)
+    }
+
+    pub fn unfilled_orders_len(&self) -> usize {
+        self.unfilled_orders.len()
+    }
+
+    fn extract_liquidity(market_data: &MarketData) -> (f64, f64) {
+        let available_size = match market_data {
+            MarketData::Bar(bar) => bar.volume,
+            MarketData::Tick(tick) => tick.size,
+        };
+
+        let current_price = match market_data {
+            MarketData::Bar(bar) => bar.open,
+            MarketData::Tick(tick) => tick.price,
+        };
+
+        (available_size, current_price)
+    }
+
+    fn prepare_order_fill(
+        &mut self,
+        order_id: usize,
+        available_size: &mut f64,
+    ) -> Option<PendingFill> {
+        let order = self.orders.get_mut(&order_id)?;
+        if order.size <= 0.0 {
+            return None;
+        }
+
+        let size_for_fill = order.size.min(*available_size);
+        if size_for_fill <= 0.0 {
+            return None;
+        }
+
+        *available_size -= size_for_fill;
+        order.size -= size_for_fill;
+
+        Some(PendingFill {
+            order_id,
+            stored_order_id: order.id?,
+            fill_size: size_for_fill,
+            order_remaining: order.size,
+            instrument: order.instrument,
+            strategy_id: order.strategy_id,
+            side: order.side.clone(),
+            order_type: order.order_type.clone(),
+        })
+    }
+
+    fn record_fill(&mut self, pending_fill: &PendingFill, price: f64) {
+        let fill_id = self.store_fill(pending_fill, price);
+
+        match self.order_trades.get(&pending_fill.order_id).copied() {
+            Some(trade_id) if trade_id != 0 => {
+                self.append_fill_to_trade(trade_id, fill_id, pending_fill.fill_size, price)
+            }
+            _ => self.create_trade_from_fill(pending_fill, fill_id, price),
+        }
+    }
+
+    fn price_for_fill(order_type: &OrderType, side: &OrderSide, current_price: f64) -> f64 {
+        match order_type {
+            Market => current_price,
+            Limit(limit) => match side {
+                OrderSide::Buy => current_price.min(*limit),
+                OrderSide::Sell => current_price.max(*limit),
+            },
+            Stop(stop) => *stop,
+            StopLimit(stop, _limit) => *stop,
+        }
+    }
+
+    fn store_fill(&mut self, pending_fill: &PendingFill, price: f64) -> usize {
+        let fill_id = self.next_fill_id();
+        let fill = Fill {
+            id: fill_id,
+            instrument: pending_fill.instrument,
+            strategy_id: pending_fill.strategy_id,
+            order_id: pending_fill.stored_order_id,
+            side: pending_fill.side.clone(),
+            size: pending_fill.fill_size,
+            price,
+        };
+        log::info!("Order {} filled: {}", pending_fill.stored_order_id, fill);
+        self.fills.insert(fill_id, fill);
+        fill_id
+    }
+
+    fn append_fill_to_trade(
+        &mut self,
+        trade_id: usize,
+        fill_id: usize,
+        fill_size: f64,
+        price: f64,
+    ) {
+        log::debug!("Adding fill {} to trade {}", fill_id, trade_id);
+        if let Some(trade) = self.trades.get_mut(&trade_id) {
+            trade.fills.push(fill_id);
+            let metrics = self
+                .trade_metrics
+                .entry(trade_id)
+                .or_insert_with(TradeMetrics::default);
+            metrics.total_size += fill_size;
+            metrics.weighted_sum += fill_size * price;
+            let avg_price = if metrics.total_size > 0.0 {
+                metrics.weighted_sum / metrics.total_size
+            } else {
+                trade.entry_price
             };
-            let fill = Fill {
-                    id: fill_id,
-                    instrument: order.instrument,
-                    strategy_id: order.strategy_id,
-                    order_id: order.id.unwrap(),
-                    side: order.side.clone(),
-                    size: order.size,
-                    price: price,
-                };
-            log::info!("Order {} filled: {}", order.id.unwrap(), fill);
-            self.fills.insert(
-                fill_id,
-                fill,
+            trade.entry_price = avg_price;
+            trade.size = metrics.total_size;
+            log::debug!(
+                "Updated entry price for trade {} to {}",
+                trade_id,
+                avg_price
             );
         }
-        self.unfilled_orders.clear();
+    }
+
+    fn create_trade_from_fill(&mut self, pending_fill: &PendingFill, fill_id: usize, price: f64) {
+        log::debug!("Creating new trade for order {}", pending_fill.order_id);
+        let trade_id = self.next_trade_id();
+        let trade = Trade {
+            id: trade_id,
+            instrument: pending_fill.instrument,
+            strategy_id: pending_fill.strategy_id,
+            fills: vec![fill_id],
+            size: pending_fill.fill_size,
+            entry_price: price,
+            entry_index: 0,
+            exit_price: None,
+            exit_index: None,
+        };
+        self.trades.insert(trade_id, trade);
+        self.order_trades.insert(pending_fill.order_id, trade_id);
+        self.trade_metrics.insert(
+            trade_id,
+            TradeMetrics {
+                total_size: pending_fill.fill_size,
+                weighted_sum: pending_fill.fill_size * price,
+            },
+        );
+    }
+
+    fn next_fill_id(&mut self) -> usize {
+        self.last_fill_id += 1;
+        self.last_fill_id
+    }
+
+    fn next_trade_id(&mut self) -> usize {
+        self.last_trade_id += 1;
+        self.last_trade_id
     }
 }
 
