@@ -40,8 +40,7 @@ impl CSVRowParser for TradeStationCSVRowParser {
         self.volume = row[8].parse::<f64>()?;
 
         Ok(MarketData::Bar(Bar {
-            date: NaiveDateTime::parse_from_str(&self.date, "%m/%d/%Y %H:%M")
-                .unwrap(),
+            date: NaiveDateTime::parse_from_str(&self.date, "%m/%d/%Y %H:%M").unwrap(),
             open: self.open,
             high: self.high,
             low: self.low,

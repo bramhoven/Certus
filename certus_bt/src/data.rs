@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use chrono::prelude::*;
 use chrono::NaiveDateTime;
+use chrono::prelude::*;
 
 use certus_core::data::{Bar, MarketData};
 
@@ -12,10 +12,12 @@ pub struct HistoricBarConsolidationModel {
 
 impl HistoricBarConsolidationModel {
     pub fn new(input_minutes: u32, output_minutes: u32) -> Self {
-        assert!(output_minutes % input_minutes == 0,
+        assert!(
+            output_minutes % input_minutes == 0,
             "output_minutes ({}) must be a multiple of input_minutes ({})",
             output_minutes,
-            input_minutes);
+            input_minutes
+        );
 
         Self {
             input_minutes,
@@ -35,7 +37,7 @@ impl HistoricBarConsolidationModel {
             .unwrap()
     }
 
-    pub fn consolidate_bars(&self, data: &Vec<MarketData>) -> Vec<MarketData>  {
+    pub fn consolidate_bars(&self, data: &Vec<MarketData>) -> Vec<MarketData> {
         let mut buckets: HashMap<NaiveDateTime, Vec<Bar>> = HashMap::new();
 
         for single_data in data.iter() {
@@ -71,11 +73,9 @@ impl HistoricBarConsolidationModel {
             }));
         }
 
-        result.sort_by_key(|data| {
-            match data {
-                MarketData::Bar(bar) => bar.date,
-                _ => unreachable!("Expected only MarketData::Bar"),
-            }
+        result.sort_by_key(|data| match data {
+            MarketData::Bar(bar) => bar.date,
+            _ => unreachable!("Expected only MarketData::Bar"),
         });
         result
     }

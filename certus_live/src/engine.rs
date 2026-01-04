@@ -8,8 +8,7 @@ pub struct LiveEngine {
 }
 
 impl Engine for LiveEngine {
-    fn init(&mut self, data_handler: Box<dyn DataHandler>) {
-        self.data_handler = data_handler;
+    fn init(&mut self) {
     }
 
     fn run(&mut self) {

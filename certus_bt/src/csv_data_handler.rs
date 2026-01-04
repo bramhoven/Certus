@@ -36,7 +36,11 @@ pub struct CSVDataHandler {
 }
 
 impl CSVDataHandler {
-    pub fn new(file_path: String, csv_row_parser: Box<dyn CSVRowParser>, bar_consolidation_model: HistoricBarConsolidationModel) -> Self {
+    pub fn new(
+        file_path: String,
+        csv_row_parser: Box<dyn CSVRowParser>,
+        bar_consolidation_model: HistoricBarConsolidationModel,
+    ) -> Self {
         Self {
             file_path,
             csv_row_parser,

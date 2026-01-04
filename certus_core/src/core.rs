@@ -37,8 +37,9 @@ pub enum OrderType {
 /// struct for defining an order
 #[derive(Clone, Debug)]
 pub struct Order {
-    pub id: usize,
+    pub id: Option<usize>,
     pub instrument: u32,
+    pub strategy_id: usize,
     pub side: OrderSide,
     pub order_type: OrderType,
     pub size: f64,
@@ -49,7 +50,29 @@ impl fmt::Display for Order {
         write!(
             f,
             "Order {} for instrument {}: {:?} {} ({:?})",
-            self.id, self.instrument, self.side, self.size, self.order_type
+            self.id.unwrap_or(0), self.instrument, self.side, self.size, self.order_type
+        )
+    }
+}
+
+// struct for defining a fill
+#[derive(Clone)]
+pub struct Fill {
+    pub id: usize,
+    pub instrument: u32,
+    pub strategy_id: usize,
+    pub order_id: usize,
+    pub side: OrderSide,
+    pub size: f64,
+    pub price: f64,
+}
+
+impl fmt::Display for Fill {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Fill {} for instrument {} and order {}: {:?} {} ({:?})",
+            self.id, self.instrument, self.order_id, self.side, self.size, self.price
         )
     }
 }
@@ -59,6 +82,8 @@ impl fmt::Display for Order {
 pub struct Trade {
     pub id: usize,
     pub instrument: u32,
+    pub strategy_id: usize,
+    pub fills: Vec<usize>,
     pub size: f64,
     pub entry_price: f64,
     pub entry_index: usize,

@@ -5,6 +5,8 @@ fn test_trade_pnl_open_trade() {
     let trade = Trade {
         id: 1,
         instrument: 1,
+        strategy_id: 1,
+        fills: Vec::with_capacity(1),
         size: 100.0,
         entry_price: 10.0,
         entry_index: 0,
@@ -19,6 +21,8 @@ fn test_trade_pnl_long_profit() {
     let trade = Trade {
         id: 1,
         instrument: 1,
+        strategy_id: 1,
+        fills: Vec::with_capacity(1),
         size: 100.0,
         entry_price: 10.0,
         entry_index: 0,
@@ -33,6 +37,8 @@ fn test_trade_pnl_long_loss() {
     let trade = Trade {
         id: 1,
         instrument: 1,
+        strategy_id: 1,
+        fills: Vec::with_capacity(1),
         size: 100.0,
         entry_price: 10.0,
         entry_index: 0,
@@ -47,6 +53,8 @@ fn test_trade_pnl_short_profit() {
     let trade = Trade {
         id: 1,
         instrument: 1,
+        strategy_id: 1,
+        fills: Vec::with_capacity(1),
         size: -100.0,
         entry_price: 10.0,
         entry_index: 0,
@@ -61,6 +69,8 @@ fn test_trade_pnl_short_loss() {
     let trade = Trade {
         id: 1,
         instrument: 1,
+        strategy_id: 1,
+        fills: Vec::with_capacity(1),
         size: -100.0,
         entry_price: 10.0,
         entry_index: 0,
@@ -75,6 +85,8 @@ fn test_trade_pnl_break_even() {
     let trade = Trade {
         id: 1,
         instrument: 1,
+        strategy_id: 1,
+        fills: Vec::with_capacity(1),
         size: 50.0,
         entry_price: 15.0,
         entry_index: 0,
@@ -89,6 +101,8 @@ fn test_trade_pnl_long_fractional() {
     let trade = Trade {
         id: 1,
         instrument: 1,
+        strategy_id: 1,
+        fills: Vec::with_capacity(1),
         size: 10.5,
         entry_price: 100.25,
         entry_index: 0,
@@ -103,6 +117,8 @@ fn test_trade_pnl_short_fractional() {
     let trade = Trade {
         id: 1,
         instrument: 1,
+        strategy_id: 1,
+        fills: Vec::with_capacity(1),
         size: -10.5,
         entry_price: 101.50,
         entry_index: 0,

@@ -1,7 +1,7 @@
-use crate::{core::Order, data::DataHandler};
+use crate::core::Order;
 
 pub trait Engine {
-    fn init(&mut self, data_handler: Box<dyn DataHandler>);
+    fn init(&mut self);
     fn run(&mut self);
 }
 
