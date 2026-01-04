@@ -4,6 +4,9 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub enum InstrumentType {
     Stock,
+    ContinuousFutures {
+        big_point_value: f64,
+    },
     Futures {
         expiry: String,
         big_point_value: f64,
@@ -13,9 +16,21 @@ pub enum InstrumentType {
 /// struct defining a trading instrument
 #[derive(Debug, Clone)]
 pub struct Instrument {
+    pub id: Option<u32>,
     pub symbol: String,
     pub exchange: Option<String>,
     pub instrument_type: InstrumentType,
+}
+
+impl Instrument {
+    pub fn new(symbol: String, exchange: Option<String>, instrument_type: InstrumentType) -> Self {
+        Self {
+            id: None,
+            symbol,
+            exchange,
+            instrument_type,
+        }
+    }
 }
 
 /// enum defining possible order sides
@@ -94,11 +109,11 @@ pub struct Trade {
 impl Trade {
     /// Calculate the PnL of the trade.
     /// Returns None if the trade is still open (no exit price yet).
-    pub fn pnl(&self) -> Option<f64> {
+    pub fn pnl(&self, big_point_value: f64) -> Option<f64> {
         match self.exit_price {
             Some(exit) => {
                 // PnL = size * (exit - entry)
-                Some(self.size * (exit - self.entry_price))
+                Some((self.size * (exit - self.entry_price)) * big_point_value)
             }
             None => None, // Trade still open
         }

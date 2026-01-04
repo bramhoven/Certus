@@ -6,7 +6,9 @@ use certus_bt::broker::BacktestingBroker;
 use certus_bt::csv_data_handler::CSVDataHandler;
 use certus_bt::data::HistoricBarConsolidationModel;
 use certus_bt::engine::{BacktestingEngine, BacktestingExecutionEngine};
+use certus_core::core::{Instrument, InstrumentType};
 use certus_core::engine::Engine;
+use certus_core::broker::Broker;
 
 use crate::data::TradeStationCSVRowParser;
 use crate::strategy::SimpleStrategy;
@@ -16,7 +18,9 @@ use env_logger;
 fn main() {
     env_logger::init();
 
-    let broker = BacktestingBroker::new(100_000.0);
+    let mut broker = BacktestingBroker::new(100_000.0);
+    let instrument_es = Instrument::new(String::from("ES"), None, InstrumentType::ContinuousFutures { big_point_value: 50.0 });
+    let instrument_es_ref = broker.add_instrument(instrument_es);
 
     let ts_row_parser = TradeStationCSVRowParser::new();
     let bar_consolidation_model = HistoricBarConsolidationModel::new(1, 30);
@@ -25,7 +29,7 @@ fn main() {
         Box::new(ts_row_parser),
         bar_consolidation_model,
     );
-    let strategy = SimpleStrategy::new(0);
+    let strategy = SimpleStrategy::new(instrument_es_ref.id.unwrap());
     let execution_engine = BacktestingExecutionEngine {};
 
     let mut engine = BacktestingEngine {

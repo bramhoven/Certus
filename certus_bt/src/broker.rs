@@ -1,6 +1,6 @@
 use std::{collections::HashMap, mem};
 
-use certus_core::core::OrderType::*;
+use certus_core::core::{Instrument, OrderType::*};
 use certus_core::{
     broker::{Account, Broker},
     core::{Fill, Order, OrderSide, OrderType, Trade},
@@ -18,6 +18,8 @@ pub struct BacktestingBroker {
     trades: HashMap<usize, Trade>,
     last_trade_id: usize,
     trade_metrics: HashMap<usize, TradeMetrics>,
+    last_instrument_id: u32,
+    instruments: HashMap<u32, Instrument>,
 }
 
 struct PendingFill {
@@ -53,6 +55,8 @@ impl BacktestingBroker {
             trades: HashMap::new(),
             last_trade_id: 0,
             trade_metrics: HashMap::new(),
+            last_instrument_id: 0,
+            instruments: HashMap::new(),
         }
     }
 
@@ -241,6 +245,11 @@ impl BacktestingBroker {
         );
     }
 
+    fn next_order_id(&mut self) -> usize {
+        self.last_order_id += 1;
+        self.last_order_id
+    }
+
     fn next_fill_id(&mut self) -> usize {
         self.last_fill_id += 1;
         self.last_fill_id
@@ -250,17 +259,29 @@ impl BacktestingBroker {
         self.last_trade_id += 1;
         self.last_trade_id
     }
+
+    fn next_instrument_id(&mut self) -> u32 {
+        self.last_instrument_id += 1;
+        self.last_instrument_id
+    }
 }
 
 impl Broker for BacktestingBroker {
     fn place_order(&mut self, mut order: Order) -> &Order {
-        let order_id = self.last_order_id + 1;
-        self.last_order_id = order_id;
-
+        let order_id = self.next_order_id();
+        
         order.id = Some(order_id);
         self.orders.insert(order_id, order);
         self.unfilled_orders.push(order_id);
 
         self.orders.get(&order_id).unwrap()
+    }
+
+    fn add_instrument(&mut self, mut instrument: Instrument) -> &Instrument {
+        let instrument_id = self.next_instrument_id();
+
+        instrument.id = Some(instrument_id);
+        self.instruments.insert(instrument_id, instrument);
+        self.instruments.get(&instrument_id).unwrap()
     }
 }
