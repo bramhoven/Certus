@@ -26,7 +26,7 @@ impl StrategyData {
     pub fn new(max_data_back: usize) -> Self {
         Self {
             max_data_back,
-            market_data: VecDeque::with_capacity(max_data_back)
+            market_data: VecDeque::with_capacity(max_data_back),
         }
     }
 

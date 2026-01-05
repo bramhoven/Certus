@@ -6,9 +6,9 @@ use certus_bt::broker::BacktestingBroker;
 use certus_bt::csv_data_handler::CSVDataHandler;
 use certus_bt::data::HistoricBarConsolidationModel;
 use certus_bt::engine::{BacktestingEngine, BacktestingExecutionEngine};
+use certus_core::broker::Broker;
 use certus_core::core::{Instrument, InstrumentType};
 use certus_core::engine::Engine;
-use certus_core::broker::Broker;
 
 use crate::data::TradeStationCSVRowParser;
 use crate::strategy::SimpleStrategy;
@@ -19,7 +19,13 @@ fn main() {
     env_logger::init();
 
     let mut broker = BacktestingBroker::new(100_000.0);
-    let instrument_es = Instrument::new(String::from("ES"), None, InstrumentType::ContinuousFutures { big_point_value: 50.0 });
+    let instrument_es = Instrument::new(
+        String::from("ES"),
+        None,
+        InstrumentType::ContinuousFutures {
+            big_point_value: 50.0,
+        },
+    );
     let instrument_es_ref = broker.add_instrument(instrument_es);
 
     let ts_row_parser = TradeStationCSVRowParser::new();
@@ -41,4 +47,7 @@ fn main() {
 
     engine.init();
     engine.run();
+
+    // engine.print_stats();
+    // engine.generate_equity_curve();
 }

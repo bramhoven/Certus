@@ -8,8 +8,7 @@ pub struct LiveEngine {
 }
 
 impl Engine for LiveEngine {
-    fn init(&mut self) {
-    }
+    fn init(&mut self) {}
 
     fn run(&mut self) {
         let mut data_feed = self.data_handler.get_data_feed();

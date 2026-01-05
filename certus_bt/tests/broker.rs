@@ -3,12 +3,13 @@ use certus_core::broker::Broker;
 use certus_core::core::{Order, OrderSide, OrderType};
 use certus_core::data::{MarketData, Tick};
 
-fn make_order(size: f64) -> Order {
+fn make_market_order(side: OrderSide, size: f64, related_id: Option<usize>) -> Order {
     Order {
         id: None,
+        related_id,
         instrument: 1,
         strategy_id: 1,
-        side: OrderSide::Buy,
+        side,
         order_type: OrderType::Market,
         size,
     }
@@ -25,7 +26,10 @@ fn make_tick(price: f64, size: f64) -> MarketData {
 #[test]
 fn simulate_fills_creates_trade_with_fill_details() {
     let mut broker = BacktestingBroker::new(1_000.0);
-    let order_id = broker.place_order(make_order(10.0)).id.unwrap();
+    let order_id = broker
+        .place_order(make_market_order(OrderSide::Buy, 10.0, None))
+        .id
+        .unwrap();
 
     broker.simulate_fills(make_tick(123.45, 10.0));
 
@@ -55,7 +59,10 @@ fn simulate_fills_creates_trade_with_fill_details() {
 #[test]
 fn simulate_multiple_fills_updates_average_entry_price() {
     let mut broker = BacktestingBroker::new(1_000.0);
-    let order_id = broker.place_order(make_order(10.0)).id.unwrap();
+    let order_id = broker
+        .place_order(make_market_order(OrderSide::Buy, 10.0, None))
+        .id
+        .unwrap();
 
     broker.simulate_fills(make_tick(100.0, 6.0));
 
@@ -102,3 +109,84 @@ fn simulate_multiple_fills_updates_average_entry_price() {
     assert_eq!(fill_sizes, vec![4.0, 6.0]);
 }
 
+#[test]
+fn related_orders_scale_and_close_trade() {
+    let mut broker = BacktestingBroker::new(1_000.0);
+    let entry_order_id = broker
+        .place_order(make_market_order(OrderSide::Buy, 5.0, None))
+        .id
+        .unwrap();
+    broker.simulate_fills(make_tick(100.0, 5.0));
+
+    let trade = broker
+        .get_trade_for_order(entry_order_id)
+        .expect("expected trade after initial entry");
+    let trade_id = trade.id;
+    assert_eq!(trade.size, 5.0);
+    assert!(
+        (trade.entry_price - 100.0).abs() < 1e-12,
+        "expected entry price 100, got {}",
+        trade.entry_price
+    );
+
+    let add_order_id = broker
+        .place_order(make_market_order(
+            OrderSide::Buy,
+            3.0,
+            Some(trade_id),
+        ))
+        .id
+        .unwrap();
+    broker.simulate_fills(make_tick(105.0, 3.0));
+
+    let trade = broker
+        .get_trade_for_order(add_order_id)
+        .expect("expected trade after scaling in");
+    assert_eq!(trade.size, 8.0);
+    let expected_entry = (5.0 * 100.0 + 3.0 * 105.0) / 8.0;
+    assert!(
+        (trade.entry_price - expected_entry).abs() < 1e-12,
+        "expected average entry {}, got {}",
+        expected_entry,
+        trade.entry_price
+    );
+    assert!(trade.exit_price.is_none());
+
+    let reduce_order_id = broker
+        .place_order(make_market_order(
+            OrderSide::Sell,
+            3.0,
+            Some(trade_id),
+        ))
+        .id
+        .unwrap();
+    broker.simulate_fills(make_tick(110.0, 3.0));
+
+    let trade = broker
+        .get_trade_for_order(reduce_order_id)
+        .expect("expected trade after scaling out");
+    assert_eq!(trade.size, 5.0);
+    assert!(
+        (trade.entry_price - expected_entry).abs() < 1e-12,
+        "expected entry price to remain {}, got {}",
+        expected_entry,
+        trade.entry_price
+    );
+    assert!(trade.exit_price.is_none());
+
+    let close_order_id = broker
+        .place_order(make_market_order(
+            OrderSide::Sell,
+            5.0,
+            Some(trade_id),
+        ))
+        .id
+        .unwrap();
+    broker.simulate_fills(make_tick(115.0, 5.0));
+
+    let trade = broker
+        .get_trade_for_order(close_order_id)
+        .expect("expected trade after closing");
+    assert_eq!(trade.size, 0.0);
+    assert_eq!(trade.exit_price, Some(115.0));
+}

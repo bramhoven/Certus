@@ -56,30 +56,78 @@ impl Strategy for SimpleStrategy {
             self.ma_slow.value
         );
 
-        // Crossover upside check
-        if self.ma_fast[1] < self.ma_slow[1] && self.ma_fast[0] > self.ma_slow[0] {
-            log::info!("Crossover UP");
-            let _order = broker.place_order(Order {
-                id: None,
-                instrument: self.instrument,
-                strategy_id: self.id,
-                side: OrderSide::Buy,
-                order_type: OrderType::Market,
-                size: 1.0,
-            });
+        let cur_pos = broker.get_current_position(self.id, self.instrument);
+        let mut cur_trade_id: Option<usize> = None;
+        if cur_pos != 0.0 {
+            let trades = broker.get_open_trades(self.id, self.instrument);
+            if trades.len() > 0 {
+                cur_trade_id = Some(trades.first().map(|t| t.id).unwrap());
+            }
         }
 
-        // Crossover downside check
-        if self.ma_fast[1] > self.ma_slow[1] && self.ma_fast[0] < self.ma_slow[0] {
-            log::info!("Crossover DOWN");
-            let _order = broker.place_order(Order {
-                id: None,
-                instrument: self.instrument,
-                strategy_id: self.id,
-                side: OrderSide::Sell,
-                order_type: OrderType::Market,
-                size: 1.0,
-            });
+        // Check for entry
+        if cur_pos == 0.0 {
+            // Crossover upside check
+            if self.ma_fast[1] < self.ma_slow[1] && self.ma_fast[0] > self.ma_slow[0] {
+                log::info!("[ENTRY] Crossover UP");
+                let _order = broker.place_order(Order {
+                    id: None,
+                    related_id: None,
+                    instrument: self.instrument,
+                    strategy_id: self.id,
+                    side: OrderSide::Buy,
+                    order_type: OrderType::Market,
+                    size: 1.0,
+                });
+            }
+
+            // Crossover downside check
+            if self.ma_fast[1] > self.ma_slow[1] && self.ma_fast[0] < self.ma_slow[0] {
+                log::info!("[ENTRY] Crossover DOWN");
+                let _order = broker.place_order(Order {
+                    id: None,
+                    related_id: None,
+                    instrument: self.instrument,
+                    strategy_id: self.id,
+                    side: OrderSide::Sell,
+                    order_type: OrderType::Market,
+                    size: 1.0,
+                });
+            }
+        }
+
+        // Check for exiting long
+        else if cur_pos > 0.0 {
+            // Crossover downside check
+            if self.ma_fast[1] > self.ma_slow[1] && self.ma_fast[0] < self.ma_slow[0] {
+                log::info!("[EXIT] Crossover DOWN");
+                let _order = broker.place_order(Order {
+                    id: None,
+                    related_id: cur_trade_id,
+                    instrument: self.instrument,
+                    strategy_id: self.id,
+                    side: OrderSide::Buy,
+                    order_type: OrderType::Market,
+                    size: 1.0,
+                });
+            }
+        }
+
+        // Check for exiting short
+        else if cur_pos < 0.0 {
+            // Crossover upside check
+            if self.ma_fast[1] < self.ma_slow[1] && self.ma_fast[0] > self.ma_slow[0] {
+                log::info!("[EXIT] Crossover UP");
+                let _order = broker.place_order(Order {
+                    id: None,
+                    related_id: cur_trade_id,
+                    instrument: self.instrument,
+                    strategy_id: self.id,
+                    side: OrderSide::Sell,
+                    order_type: OrderType::Market,
+                    size: 1.0,
+                });
+            }
         }
     }
 }

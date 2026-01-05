@@ -31,28 +31,19 @@ fn test_trade_pnl_long_profit() {
 #[test]
 fn test_trade_pnl_long_loss() {
     let trade = make_trade(100.0, 10.0, Some(8.0));
-    assert_eq!(
-        trade.pnl(STOCK_BIG_POINT_VALUE),
-        Some(-200.0)
-    ); // 100 * (8 - 10)
+    assert_eq!(trade.pnl(STOCK_BIG_POINT_VALUE), Some(-200.0)); // 100 * (8 - 10)
 }
 
 #[test]
 fn test_trade_pnl_short_profit() {
     let trade = make_trade(-100.0, 10.0, Some(8.0));
-    assert_eq!(
-        trade.pnl(STOCK_BIG_POINT_VALUE),
-        Some(200.0)
-    ); // -100 * (8 - 10)
+    assert_eq!(trade.pnl(STOCK_BIG_POINT_VALUE), Some(200.0)); // -100 * (8 - 10)
 }
 
 #[test]
 fn test_trade_pnl_short_loss() {
     let trade = make_trade(-100.0, 10.0, Some(12.0));
-    assert_eq!(
-        trade.pnl(STOCK_BIG_POINT_VALUE),
-        Some(-200.0)
-    ); // -100 * (12 - 10)
+    assert_eq!(trade.pnl(STOCK_BIG_POINT_VALUE), Some(-200.0)); // -100 * (12 - 10)
 }
 
 #[test]
@@ -65,20 +56,14 @@ fn test_trade_pnl_break_even() {
 fn test_trade_pnl_long_fractional() {
     let trade = make_trade(10.5, 100.25, Some(101.50));
     let expected = 10.5 * (101.50 - 100.25);
-    assert_eq!(
-        trade.pnl(STOCK_BIG_POINT_VALUE),
-        Some(expected)
-    ); // 10.5 * 1.25 = 13.125
+    assert_eq!(trade.pnl(STOCK_BIG_POINT_VALUE), Some(expected)); // 10.5 * 1.25 = 13.125
 }
 
 #[test]
 fn test_trade_pnl_short_fractional() {
     let trade = make_trade(-10.5, 101.50, Some(100.25));
     let expected = -10.5 * (100.25 - 101.50);
-    assert_eq!(
-        trade.pnl(STOCK_BIG_POINT_VALUE),
-        Some(expected)
-    ); // -10.5 * -1.25 = 13.125
+    assert_eq!(trade.pnl(STOCK_BIG_POINT_VALUE), Some(expected)); // -10.5 * -1.25 = 13.125
 }
 
 #[test]

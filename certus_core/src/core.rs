@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{collections::HashMap, fmt};
 
 /// enum defining the type of trading instrument
 #[derive(Debug, Clone)]
@@ -53,6 +53,7 @@ pub enum OrderType {
 #[derive(Clone, Debug)]
 pub struct Order {
     pub id: Option<usize>,
+    pub related_id: Option<usize>,
     pub instrument: u32,
     pub strategy_id: usize,
     pub side: OrderSide,
@@ -62,11 +63,28 @@ pub struct Order {
 
 impl fmt::Display for Order {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "Order {} for instrument {}: {:?} {} ({:?})",
-            self.id.unwrap_or(0), self.instrument, self.side, self.size, self.order_type
-        )
+        if self.related_id.is_none() {
+            write!(
+                f,
+                "Order {} for instrument {}: {:?} {} ({:?})",
+                self.id.unwrap_or(0),
+                self.instrument,
+                self.side,
+                self.size,
+                self.order_type
+            )
+        } else {
+            write!(
+                f,
+                "Order {} [related to {}] for instrument {}: {:?} {} ({:?})",
+                self.id.unwrap_or(0),
+                self.related_id.unwrap_or(0),
+                self.instrument,
+                self.side,
+                self.size,
+                self.order_type
+            )
+        }
     }
 }
 
@@ -133,5 +151,27 @@ impl fmt::Display for Trade {
             self.exit_price,
             self.exit_index
         )
+    }
+}
+
+pub struct PositionManager {
+    pub trades: HashMap<usize, Vec<usize>>,
+    pub open_trades: HashMap<usize, Vec<usize>>,
+}
+
+impl PositionManager {
+    pub fn new() -> Self {
+        Self {
+            trades: HashMap::new(),
+            open_trades: HashMap::new(),
+        }
+    }
+
+    pub fn get_trades(&self, strategy_id: usize) -> &[usize] {
+        self.trades.get(&strategy_id).map(Vec::as_slice).unwrap_or(&[])
+    }
+
+    pub fn get_open_trades(&self, strategy_id: usize) -> &[usize] {
+        self.open_trades.get(&strategy_id).map(Vec::as_slice).unwrap_or(&[])
     }
 }

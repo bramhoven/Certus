@@ -2,7 +2,6 @@ use std::{collections::VecDeque, ops::Index};
 
 use crate::data::MarketData;
 
-
 pub trait Indicator {
     fn is_ready(&self) -> bool;
     fn update(&mut self, market_data: MarketData);
