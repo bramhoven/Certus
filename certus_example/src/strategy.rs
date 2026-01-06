@@ -1,8 +1,8 @@
 use certus_core::broker::Broker;
-use certus_core::core::{Order, OrderSide, OrderType};
+use certus_core::core::{OrderSide, OrderType};
 use certus_core::data::MarketData;
 use certus_core::indicator::{Indicator, MovingAverage};
-use certus_core::strategy::{Strategy, StrategyData};
+use certus_core::strategy::{Strategy, MarketDataReceiver, StrategyBase, StrategyData};
 
 use log;
 
@@ -26,19 +26,30 @@ impl SimpleStrategy {
     }
 }
 
-impl Strategy for SimpleStrategy {
-    fn init(&mut self, id: usize) {
-        self.id = id;
-        self.data.init(0);
-    }
-
+impl MarketDataReceiver for SimpleStrategy {
     fn update(&mut self, market_data: MarketData, broker: &mut dyn Broker) {
         self.data.update(market_data, broker);
 
         self.ma_fast.update(market_data);
         self.ma_slow.update(market_data);
     }
+}
 
+impl StrategyBase for SimpleStrategy {
+    fn init(&mut self, id: usize) {
+        self.id = id;
+    }
+    
+    fn get_id(&self) -> usize {
+        self.id
+    }
+    
+    fn get_instrument(&self) -> u32 {
+        self.instrument
+    }
+}
+
+impl Strategy for SimpleStrategy {
     fn next(&mut self, _market_data: MarketData, broker: &mut dyn Broker) {
         if !self.data.is_ready() {
             return;
@@ -70,29 +81,13 @@ impl Strategy for SimpleStrategy {
             // Crossover upside check
             if self.ma_fast[1] < self.ma_slow[1] && self.ma_fast[0] > self.ma_slow[0] {
                 log::info!("[ENTRY] Crossover UP");
-                let _order = broker.place_order(Order {
-                    id: None,
-                    related_id: None,
-                    instrument: self.instrument,
-                    strategy_id: self.id,
-                    side: OrderSide::Buy,
-                    order_type: OrderType::Market,
-                    size: 1.0,
-                });
+                let _order_id = self.place_order(broker, OrderSide::Buy, OrderType::Market, 1.0);
             }
 
             // Crossover downside check
             if self.ma_fast[1] > self.ma_slow[1] && self.ma_fast[0] < self.ma_slow[0] {
                 log::info!("[ENTRY] Crossover DOWN");
-                let _order = broker.place_order(Order {
-                    id: None,
-                    related_id: None,
-                    instrument: self.instrument,
-                    strategy_id: self.id,
-                    side: OrderSide::Sell,
-                    order_type: OrderType::Market,
-                    size: 1.0,
-                });
+                let _order_id = self.place_order(broker, OrderSide::Sell, OrderType::Market, 1.0);
             }
         }
 
@@ -101,15 +96,7 @@ impl Strategy for SimpleStrategy {
             // Crossover downside check
             if self.ma_fast[1] > self.ma_slow[1] && self.ma_fast[0] < self.ma_slow[0] {
                 log::info!("[EXIT] Crossover DOWN");
-                let _order = broker.place_order(Order {
-                    id: None,
-                    related_id: cur_trade_id,
-                    instrument: self.instrument,
-                    strategy_id: self.id,
-                    side: OrderSide::Buy,
-                    order_type: OrderType::Market,
-                    size: 1.0,
-                });
+                let _order_id = self.place_related_order(broker, OrderSide::Buy, OrderType::Market, 1.0, cur_trade_id.unwrap());
             }
         }
 
@@ -118,15 +105,7 @@ impl Strategy for SimpleStrategy {
             // Crossover upside check
             if self.ma_fast[1] < self.ma_slow[1] && self.ma_fast[0] > self.ma_slow[0] {
                 log::info!("[EXIT] Crossover UP");
-                let _order = broker.place_order(Order {
-                    id: None,
-                    related_id: cur_trade_id,
-                    instrument: self.instrument,
-                    strategy_id: self.id,
-                    side: OrderSide::Sell,
-                    order_type: OrderType::Market,
-                    size: 1.0,
-                });
+                let _order_id = self.place_related_order(broker, OrderSide::Sell, OrderType::Market, 1.0, cur_trade_id.unwrap());
             }
         }
     }
