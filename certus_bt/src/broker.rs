@@ -1,6 +1,6 @@
 use std::{collections::HashMap, mem};
 
-use certus_core::core::{Instrument, OrderType::*, PositionManager};
+use certus_core::core::{Instrument, PositionManager};
 use certus_core::{
     broker::{Account, Broker},
     core::{Fill, Order, OrderSide, OrderType, Trade},
@@ -65,7 +65,7 @@ impl BacktestingBroker {
     }
 
     pub fn simulate_fills(&mut self, market_data: MarketData) {
-        let (mut available_size, current_price) = Self::extract_liquidity(&market_data);
+        let mut available_size = Self::extract_liquidity(&market_data);
 
         if available_size <= 0.0 {
             return;
@@ -74,18 +74,32 @@ impl BacktestingBroker {
         let order_queue = mem::take(&mut self.unfilled_orders);
         let mut remaining_orders = Vec::new();
 
+        let prices: Vec<f64> = match market_data {
+            MarketData::Tick(tick) => vec![tick.price],
+            MarketData::Bar(bar) => vec![bar.open, bar.high, bar.low, bar.close],
+        };
+
+        let lowest_price = prices.iter().cloned().reduce(f64::min).unwrap();
+        let highest_price = prices.iter().cloned().reduce(f64::min).unwrap();
+
         for order_id in order_queue {
             if available_size <= 0.0 {
                 remaining_orders.push(order_id);
                 continue;
             }
 
+            if !self.check_order_hit(order_id, lowest_price, highest_price) {
+                remaining_orders.push(order_id);
+                continue;
+            }
+
             let Some(pending_fill) = self.prepare_order_fill(order_id, &mut available_size) else {
+                remaining_orders.push(order_id);
                 continue;
             };
 
             let price =
-                Self::price_for_fill(&pending_fill.order_type, &pending_fill.side, current_price);
+                Self::price_for_fill(&pending_fill.order_type, &pending_fill.side, &market_data, lowest_price, highest_price);
             self.record_fill(&pending_fill, price);
 
             if pending_fill.order_remaining > 0.0 {
@@ -110,18 +124,13 @@ impl BacktestingBroker {
         self.unfilled_orders.len()
     }
 
-    fn extract_liquidity(market_data: &MarketData) -> (f64, f64) {
+    fn extract_liquidity(market_data: &MarketData) -> f64 {
         let available_size = match market_data {
             MarketData::Bar(bar) => bar.volume,
             MarketData::Tick(tick) => tick.size,
         };
 
-        let current_price = match market_data {
-            MarketData::Bar(bar) => bar.open,
-            MarketData::Tick(tick) => tick.price,
-        };
-
-        (available_size, current_price)
+        available_size
     }
 
     fn signed_quantity(side: &OrderSide, size: f64) -> f64 {
@@ -174,6 +183,25 @@ impl BacktestingBroker {
         })
     }
 
+    fn check_order_hit(&self, order_id: usize, lowest_price: f64, highest_price: f64) -> bool {
+        let order = self.orders.get(&order_id).unwrap();
+        match order.order_type {
+            OrderType::Market => true,
+            OrderType::Limit(limit) => match order.side {
+                OrderSide::Buy => lowest_price <= limit,
+                OrderSide::Sell => highest_price >= limit
+            },
+            OrderType::Stop(stop) => match order.side {
+                OrderSide::Buy => highest_price >= stop,
+                OrderSide::Sell => lowest_price <= stop,
+            }
+            OrderType::StopLimit(stop, limit) => match order.side {
+                OrderSide::Buy => highest_price >= stop && lowest_price <= limit,
+                OrderSide::Sell => lowest_price <= stop && highest_price >= limit,
+            }
+        }
+    }
+
     fn record_fill(&mut self, pending_fill: &PendingFill, price: f64) {
         let fill_id = self.store_fill(pending_fill, price);
 
@@ -194,15 +222,26 @@ impl BacktestingBroker {
         }
     }
 
-    fn price_for_fill(order_type: &OrderType, side: &OrderSide, current_price: f64) -> f64 {
-        match order_type {
-            Market => current_price,
-            Limit(limit) => match side {
-                OrderSide::Buy => current_price.min(*limit),
-                OrderSide::Sell => current_price.max(*limit),
+    // Calculate the price for the fill
+    // Ensure this also works with bars that gap the limit and stops
+    fn price_for_fill(order_type: &OrderType, side: &OrderSide, market_data: &MarketData, lowest_price: f64, highest_price: f64) -> f64 {
+        match *order_type {
+            OrderType::Market => match market_data {
+                MarketData::Tick(tick) => tick.price,
+                MarketData::Bar(bar) => bar.open,
             },
-            Stop(stop) => *stop,
-            StopLimit(stop, _limit) => *stop,
+            OrderType::Limit(limit) => match side {
+                OrderSide::Buy => if highest_price >= limit && lowest_price <= limit { limit } else { limit.max(highest_price) },
+                OrderSide::Sell => if highest_price >= limit && lowest_price <= limit { limit } else { limit.min(lowest_price) },
+            },
+            OrderType::Stop(stop) => match side {
+                OrderSide::Buy => if highest_price >= stop && lowest_price <= stop { stop } else { stop.min(lowest_price) },
+                OrderSide::Sell => if highest_price >= stop && lowest_price <= stop { stop } else { stop.max(highest_price) },
+            },
+            OrderType::StopLimit(stop, limit) => match side {
+                OrderSide::Buy => if highest_price >= stop && lowest_price <= limit { stop } else { limit.min(lowest_price) },
+                OrderSide::Sell => if highest_price >= stop && lowest_price <= limit { stop } else { limit.max(highest_price) },
+            },
         }
     }
 

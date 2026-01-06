@@ -48,6 +48,6 @@ fn main() {
     engine.init();
     engine.run();
 
-    // engine.print_stats();
-    // engine.generate_equity_curve();
+    // broker.print_stats();
+    // broker.generate_equity_curve();
 }

@@ -15,6 +15,58 @@ fn make_market_order(side: OrderSide, size: f64, related_id: Option<usize>) -> O
     }
 }
 
+fn make_limit_order(
+    side: OrderSide,
+    size: f64,
+    limit_price: f64,
+    related_id: Option<usize>,
+) -> Order {
+    Order {
+        id: None,
+        related_id,
+        instrument: 1,
+        strategy_id: 1,
+        side,
+        order_type: OrderType::Limit(limit_price),
+        size,
+    }
+}
+
+fn make_stop_order(
+    side: OrderSide,
+    size: f64,
+    stop_price: f64,
+    related_id: Option<usize>,
+) -> Order {
+    Order {
+        id: None,
+        related_id,
+        instrument: 1,
+        strategy_id: 1,
+        side,
+        order_type: OrderType::Stop(stop_price),
+        size,
+    }
+}
+
+fn make_stop_limit_order(
+    side: OrderSide,
+    size: f64,
+    stop_price: f64,
+    limit_price: f64,
+    related_id: Option<usize>,
+) -> Order {
+    Order {
+        id: None,
+        related_id,
+        instrument: 1,
+        strategy_id: 1,
+        side,
+        order_type: OrderType::StopLimit(stop_price, limit_price),
+        size,
+    }
+}
+
 fn make_tick(price: f64, size: f64) -> MarketData {
     MarketData::Tick(Tick {
         timestamp: 0,
@@ -189,4 +241,136 @@ fn related_orders_scale_and_close_trade() {
         .expect("expected trade after closing");
     assert_eq!(trade.size, 0.0);
     assert_eq!(trade.exit_price, Some(115.0));
+}
+
+#[test]
+fn market_orders_fill_on_first_available_tick() {
+    let mut broker = BacktestingBroker::new(10_000.0);
+    let order_id = broker
+        .place_order(make_market_order(OrderSide::Buy, 2.0, None))
+        .id
+        .unwrap();
+
+    assert_eq!(broker.unfilled_orders_len(), 1);
+
+    broker.simulate_fills(make_tick(250.5, 2.0));
+
+    assert_eq!(broker.unfilled_orders_len(), 0);
+    let trade = broker
+        .get_trade_for_order(order_id)
+        .expect("expected market order to fill on first tick");
+    assert!(
+        (trade.entry_price - 250.5).abs() < 1e-12,
+        "expected entry price 250.5, got {}",
+        trade.entry_price
+    );
+    assert_eq!(trade.size, 2.0);
+}
+
+#[test]
+fn limit_orders_wait_for_price_to_meet_limit() {
+    let mut broker = BacktestingBroker::new(10_000.0);
+    let limit_price = 99.0;
+    let order = make_limit_order(OrderSide::Buy, 5.0, limit_price, None);
+    let order_id = broker.place_order(order).id.unwrap();
+
+    broker.simulate_fills(make_tick(101.0, 5.0));
+    assert!(
+        broker.get_trade_for_order(order_id).is_none(),
+        "limit order should not fill above limit price"
+    );
+    assert_eq!(broker.unfilled_orders_len(), 1);
+
+    broker.simulate_fills(make_tick(98.5, 5.0));
+    assert_eq!(broker.unfilled_orders_len(), 0);
+
+    let trade = broker
+        .get_trade_for_order(order_id)
+        .expect("expected limit order to fill once price is at or below limit");
+    assert!(
+        trade.entry_price <= limit_price + 1e-12,
+        "expected entry price <= {}, got {}",
+        limit_price,
+        trade.entry_price
+    );
+    assert_eq!(trade.size, 5.0);
+
+    let fill = broker
+        .get_fill(trade.fills[0])
+        .expect("expected fill record for limit order");
+    assert!(
+        fill.price <= limit_price + 1e-12,
+        "expected fill price <= {}, got {}",
+        limit_price,
+        fill.price
+    );
+}
+
+#[test]
+fn stop_orders_trigger_after_threshold_is_crossed() {
+    let mut broker = BacktestingBroker::new(10_000.0);
+    let stop_price = 101.0;
+    let order = make_stop_order(OrderSide::Buy, 4.0, stop_price, None);
+    let order_id = broker.place_order(order).id.unwrap();
+
+    broker.simulate_fills(make_tick(100.25, 4.0));
+    assert!(
+        broker.get_trade_for_order(order_id).is_none(),
+        "stop order should not fill before stop price is reached"
+    );
+
+    broker.simulate_fills(make_tick(101.75, 4.0));
+    assert_eq!(broker.unfilled_orders_len(), 0);
+
+    let trade = broker
+        .get_trade_for_order(order_id)
+        .expect("expected stop order to fill once price crosses stop");
+    assert!(
+        trade.entry_price >= stop_price - 1e-12,
+        "expected entry price >= {}, got {}",
+        stop_price,
+        trade.entry_price
+    );
+    assert_eq!(trade.size, 4.0);
+}
+
+#[test]
+fn stop_limit_orders_trigger_then_respect_limit_price() {
+    let mut broker = BacktestingBroker::new(10_000.0);
+    let stop_price = 101.0;
+    let limit_price = 101.5;
+    let order = make_stop_limit_order(OrderSide::Buy, 3.0, stop_price, limit_price, None);
+    let order_id = broker.place_order(order).id.unwrap();
+
+    broker.simulate_fills(make_tick(100.5, 3.0));
+    assert!(
+        broker.get_trade_for_order(order_id).is_none(),
+        "stop-limit order should not fill before stop is triggered"
+    );
+
+    broker.simulate_fills(make_tick(102.0, 3.0));
+    assert!(
+        broker.get_trade_for_order(order_id).is_none(),
+        "stop-limit order should trigger but remain pending while price is beyond limit"
+    );
+
+    broker.simulate_fills(make_tick(101.25, 3.0));
+    assert_eq!(broker.unfilled_orders_len(), 0);
+
+    let trade = broker
+        .get_trade_for_order(order_id)
+        .expect("expected stop-limit order to fill once price returns within limit");
+    assert!(
+        trade.entry_price >= stop_price - 1e-12,
+        "expected entry price >= stop {}, got {}",
+        stop_price,
+        trade.entry_price
+    );
+    assert!(
+        trade.entry_price <= limit_price + 1e-12,
+        "expected entry price <= limit {}, got {}",
+        limit_price,
+        trade.entry_price
+    );
+    assert_eq!(trade.size, 3.0);
 }
